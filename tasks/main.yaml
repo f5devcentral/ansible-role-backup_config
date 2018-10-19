@@ -1,0 +1,77 @@
+---
+
+- name: Setup provider
+  set_fact:
+    provider:
+      server: "{{ bigiq_onboard_server }}"
+      server_port: "{{ bigiq_onboard_server_port }}"
+      user: "{{ bigiq_onboard_user }}"
+      password: "{{ bigiq_onboard_password }}"
+      validate_certs: "{{ bigiq_onboard_validate_certs }}"
+      transport: "{{ bigiq_onboard_transport }}"
+
+- name: Wait for BIG-IP to be available
+  bigip_wait:
+    timeout: 300
+    provider: "{{ provider }}"
+  delegate_to: localhost
+  register: status
+  until: status is success
+  retries: 10
+  delay: 6
+
+- name: Save Config
+  bigip_config:
+    provider: "{{ provider }}"
+    save: yes
+  delegate_to: localhost
+
+- name: Fetch a qkview from the remote device
+  bigip_qkview:
+    asm_request_log: yes
+    exclude:
+      - audit
+      - secure
+    dest: /tmp/localhost.localdomain.qkview
+    provider: "{{ provider }}"
+  delegate_to: localhost
+
+- name: Create QKVIEW
+  bigip_command:
+    provider: "{{ provider }}"
+    commands:
+      - "qkview -f legacy.qkview"
+  delegate_to: localhost
+
+- name: Create UCS
+  bigip_command:
+    provider: "{{ hostvars[inventory_hostname]['provider'] }}"
+    commands:
+      - "save sys ucs legacy.ucs"
+  delegate_to: localhost
+
+- name: Check for QKVIEW file
+  stat:
+    path: /var/tmp/legacy.qkview
+  register: qkstatus
+  until: qkstatus.stat.exists
+  retries: 10
+  delay: 15
+
+- name: Pull QKVIEW
+  fetch:
+    src: /var/tmp/legacy.qkview
+    dest: ./upgrade_files/legacy.qkview
+
+- name: Check for UCS file
+  stat:
+    path: /var/local/ucs/legacy.ucs
+  register: ucstatus
+  until: ucstatus.stat.exists
+  retries: 10
+  delay: 15
+
+- name: Pull UCS
+  fetch:
+    src: /var/local/ucs/legacy.ucs
+    dest: ./upgrade_files/legacy.ucs
