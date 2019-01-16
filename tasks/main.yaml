@@ -23,12 +23,12 @@
 - name: Save Config
   bigip_config:
     provider: "{{ provider }}"
-    save: yes
+    save: true
   delegate_to: localhost
 
 - name: Fetch a qkview from the remote device
   bigip_qkview:
-    asm_request_log: yes
+    asm_request_log: true
     exclude:
       - audit
       - secure
